@@ -1,0 +1,26 @@
+Я проверил как и за какое время выполняется запрос до оптимизации:
+postgres=# explain analyze select name from t1 where id = 50000;
+                                                  QUERY PLAN                              
+------------------------------------------------------------------------------------------------------------------------------
+ Seq Scan on t1  (cost=0.00..208392.00 rows=1 width=30) (actual time=3.902..307.419 rows=1 loops=1)
+   Filter: (id = 50000)
+   Rows Removed by Filter: 9999999
+ Planning Time: 0.035 ms
+ JIT:
+   Functions: 4
+   Options: Inlining false, Optimization false, Expressions true, Deforming true
+   Timing: Generation 0.180 ms (Deform 0.081 ms), Inlining 0.000 ms, Optimization 0.145 ms, Emission 1.636 ms, Total 1.961 ms
+ Execution Time: 307.656 ms
+(9 rows)
+Мне показалось для такого простого поискового запроса будет достаточно добавить индекс
+postgres=# create unique index t1_id_idx on t1 (id);
+CREATE INDEX
+postgres=# explain analyze select name from t1 where id = 50000;
+                                                  QUERY PLAN                                                   
+---------------------------------------------------------------------------------------------------------------
+ Index Scan using t1_id_idx on t1  (cost=0.43..8.45 rows=1 width=30) (actual time=0.037..0.037 rows=1 loops=1)
+   Index Cond: (id = 50000)
+ Planning Time: 0.133 ms
+ Execution Time: 0.046 ms
+(4 rows)
+Вывод позволяет убедиться, что время выполнения меньше 10mc

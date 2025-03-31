@@ -1,0 +1,55 @@
+Я не смог довести tps до неизменяемого состояния, но увеличил его посредством уменьшения сейвпоинтов на транзакцию.
+
+psql -X -q --user postgres <<'EOF'
+create or replace function random(left bigint, right bigint) returns bigint
+as $$
+ select trunc(random.left + random()*(random.right - random.left))::bigint;
+$$                                                
+language sql;
+EOF
+
+psql -X -q --user postgres > generate_100_subtrans.sql <<EOF
+select '\\set id random(1,10000000)'
+union all
+select 'BEGIN;'
+union all
+select 'savepoint v' || v.id || ';'                || E'\n' 
+    || 'update t1 set name = name where id = :id;' || E'\n'
+from generate_series(1,10) v(id)
+union all
+select E'COMMIT;\n' \g (tuples_only=true format=unaligned)
+EOF
+
+psql --user postgres < generate_100_subtrans.sql > generate_100_subtrans.lst
+
+pgbench postgres -p 5432 -rn -P1 -c10 -T3600 -M prepared --protocol=simple -f generate_100_subtrans.sql 2>&1 > generate_100_subtrans_pgbench.log
+progress: 1.0 s, 3938.0 tps, lat 2.486 ms stddev 0.358, 0 failed
+progress: 2.0 s, 3994.0 tps, lat 2.489 ms stddev 0.357, 0 failed
+progress: 3.0 s, 3947.0 tps, lat 2.517 ms stddev 0.490, 0 failed
+progress: 4.0 s, 3986.1 tps, lat 2.492 ms stddev 0.458, 0 failed
+progress: 5.0 s, 3973.0 tps, lat 2.500 ms stddev 0.378, 0 failed
+progress: 6.0 s, 4052.0 tps, lat 2.453 ms stddev 0.348, 0 failed
+progress: 7.0 s, 4020.9 tps, lat 2.469 ms stddev 0.369, 0 failed
+progress: 8.0 s, 4005.1 tps, lat 2.481 ms stddev 0.372, 0 failed
+progress: 9.0 s, 4024.0 tps, lat 2.469 ms stddev 0.522, 0 failed
+progress: 10.0 s, 4074.0 tps, lat 2.440 ms stddev 0.348, 0 failed
+progress: 11.0 s, 4058.1 tps, lat 2.448 ms stddev 0.347, 0 failed
+progress: 12.0 s, 4105.0 tps, lat 2.419 ms stddev 0.342, 0 failed
+progress: 13.0 s, 4023.9 tps, lat 2.468 ms stddev 0.360, 0 failed
+progress: 14.0 s, 3153.0 tps, lat 3.156 ms stddev 5.360, 0 failed
+progress: 15.0 s, 3921.0 tps, lat 2.532 ms stddev 0.412, 0 failed
+progress: 16.0 s, 4008.9 tps, lat 2.480 ms stddev 0.372, 0 failed
+progress: 17.0 s, 3985.0 tps, lat 2.494 ms stddev 0.458, 0 failed
+progress: 18.0 s, 4069.0 tps, lat 2.440 ms stddev 0.353, 0 failed
+progress: 19.0 s, 4036.8 tps, lat 2.459 ms stddev 0.362, 0 failed
+progress: 20.0 s, 3957.2 tps, lat 2.512 ms stddev 0.510, 0 failed
+progress: 21.0 s, 4007.1 tps, lat 2.479 ms stddev 0.366, 0 failed
+progress: 22.0 s, 4008.9 tps, lat 2.478 ms stddev 0.453, 0 failed
+progress: 23.0 s, 4080.1 tps, lat 2.436 ms stddev 0.345, 0 failed
+progress: 24.0 s, 4086.0 tps, lat 2.432 ms stddev 0.346, 0 failed
+progress: 25.0 s, 3978.0 tps, lat 2.497 ms stddev 0.521, 0 failed
+progress: 26.0 s, 4018.1 tps, lat 2.472 ms stddev 0.366, 0 failed
+progress: 27.0 s, 4031.9 tps, lat 2.464 ms stddev 0.386, 0 failed
+progress: 28.0 s, 3153.1 tps, lat 3.157 ms stddev 4.262, 0 failed
+progress: 29.0 s, 4024.0 tps, lat 2.466 ms stddev 0.435, 0 failed
+progress: 30.0 s, 4017.0 tps, lat 2.475 ms stddev 0.485, 0 failed

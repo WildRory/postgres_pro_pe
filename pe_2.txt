@@ -1,0 +1,24 @@
+Сначала я решил проанализировать время выполнения и как выполняется запрос
+postgres=# explain analyze select max(t2.day) from t2 left join t1 on t2.t_id = t1.id and t1.name like 'a%';
+                                                  QUERY PLAN                                                     
+--------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=94373.12..94373.13 rows=1 width=32) (actual time=627.905..627.906 rows=1 loops=1)
+   ->  Seq Scan on t2  (cost=0.00..81872.90 rows=5000090 width=9) (actual time=0.046..171.184 rows=5000000 loops=1)
+ Planning Time: 0.065 ms
+ Execution Time: 627.927 ms
+(4 rows)
+После я заметил, что join в этом запросе не несет никакой ценности - проблема заключается в том, что используется left join, который не фильтрует строки изначальной таблицы, из-за чего условия объединения ни как не влияют на ответ, а лишь замедляют выполнение. Кроме того я добавил индекс на поле day таблицы t2 для ускорения поиска, что важно для max()
+postgres=# create index t2_day_idx on t2 (day);
+postgres=# explain analyze select max(t2.day) from t2;
+                                                  QUERY PLAN                                                                      
+------------------------------------------------------------------------------------------------------------------------------------------------------
+ Result  (cost=0.45..0.46 rows=1 width=32) (actual time=0.020..0.020 rows=1 loops=1)
+   InitPlan 1
+     ->  Limit  (cost=0.43..0.45 rows=1 width=9) (actual time=0.017..0.017 rows=1 loops=1)
+           ->  Index Only Scan Backward using t2_day_idx on t2  (cost=0.43..104784.44 rows=5000000 width=9) (actual time=0.017..0.017 rows=1 loops=1)
+                 Index Cond: (day IS NOT NULL)
+                 Heap Fetches: 0
+ Planning Time: 0.064 ms
+ Execution Time: 0.034 ms
+(8 rows)
+Вывод позволяет убедиться, что время выполнения меньше 10mc

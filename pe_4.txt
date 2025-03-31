@@ -1,0 +1,20 @@
+Решение аналогично заданию 3
+postgres=# explain analyze select day from t2 where t_id in ( select t1.id from t1 where t2.t_id = t1.id) and day > to_char(date_trunc('day',now()- '1 months'::interval),'yyyymmdd');
+...
+postgres=# explain analyze select day from t2 where exists ( select 1 from t1 where t2.t_id = t1.id ) and day > to_char(date_trunc('day',now()- '1 months'::interval),'yyyymmdd');
+                                                  QUERY PLAN                                                               
+---------------------------------------------------------------------------------------------------------------
+ Hash Join  (cost=33114.11..324496.13 rows=740144 width=9) (actual time=156.624..2338.385 rows=760183 loops=1)
+   Hash Cond: (t1.id = t2.t_id)
+   ->  Seq Scan on t1  (cost=0.00..183392.00 rows=10000000 width=4) (actual time=4.030..676.895 rows=10000000 loops=1)
+   ->  Hash  (cost=20248.31..20248.31 rows=740144 width=13) (actual time=151.739..151.740 rows=760183 loops=1)
+         Buckets: 262144  Batches: 8  Memory Usage: 6504kB
+         ->  Index Scan using t2_day_idx on t2  (cost=0.44..20248.31 rows=740144 width=13) (actual time=0.043..71.200 rows=760183 loops=1)
+               Index Cond: (day > to_char(date_trunc('day'::text, (now() - '1 mon'::interval)), 'yyyymmdd'::text))
+ Planning Time: 0.208 ms
+ JIT:
+   Functions: 13
+   Options: Inlining false, Optimization false, Expressions true, Deforming true
+   Timing: Generation 0.487 ms (Deform 0.202 ms), Inlining 0.000 ms, Optimization 0.235 ms, Emission 3.798 ms, Total 4.520 ms
+ Execution Time: 2354.098 ms
+(13 rows)

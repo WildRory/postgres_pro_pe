@@ -1,0 +1,21 @@
+Попытка проверить первоначальную скорость запроса не увенчалось успехом, так как я не смог дождаться его выполнения
+postgres=# explain analyze select day from t2 where t_id not in ( select t1.id from t1 );
+...
+Проблема запроса заключается в использовании in, так как для каждой записи таблицы t1 приходится проверять все записи t2. Вместо этого можно использовать exists, который лучше работает с индексами.
+postgres=# explain analyze select day from t2 where not exists ( select 1 from t1 where t1.id = t2.t_id );
+                                                  QUERY PLAN                                                    
+---------------------------------------------------------------------------------------------------------------------------------------------
+ Hash Join  (cost=168787.00..480970.01 rows=5000000 width=9) (actual time=853.645..3419.741 rows=5000000 loops=1)
+   Hash Cond: (t1.id = t2.t_id)
+   ->  Seq Scan on t1  (cost=0.00..183392.00 rows=10000000 width=4) (actual time=2.672..540.684 rows=10000000 loops=1)
+   ->  Hash  (cost=81872.00..81872.00 rows=5000000 width=13) (actual time=848.805..848.806 rows=5000000 loops=1)
+         Buckets: 262144  Batches: 64  Memory Usage: 5715kB
+         ->  Seq Scan on t2  (cost=0.00..81872.00 rows=5000000 width=13) (actual time=0.011..283.940 rows=5000000 loops=1)
+ Planning Time: 0.166 ms
+ JIT:
+   Functions: 10
+   Options: Inlining false, Optimization false, Expressions true, Deforming true
+   Timing: Generation 0.269 ms (Deform 0.109 ms), Inlining 0.000 ms, Optimization 0.174 ms, Emission 2.501 ms, Total 2.945 ms
+ Execution Time: 3515.689 ms
+(12 rows)
+Вывод позволяет убедиться, что время выполнения меньше 10c
